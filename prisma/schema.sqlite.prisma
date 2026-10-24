@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(cuid())
+  name             String
+  email            String            @unique
+  passwordHash     String
+  role             String            @default("STUDENT") // "STUDENT" | "ADMIN"
+  avatarUrl        String?
+  bio              String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  enrollments      Enrollment[]
+  lessonProgresses LessonProgress[]
+  quizAttempts     QuizAttempt[]
+  learningSessions LearningActivity[]
+  orders           Order[]
+  completions      CourseCompletion[]
+  resetTokens      PasswordResetToken[]
+
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Course {
+  id                 String             @id @default(cuid())
+  slug               String             @unique
+  title              String
+  shortDescription   String
+  fullDescription    String
+  coverImage         String
+  instructorName     String
+  instructorBio      String
+  instructorAvatar   String
+  estimatedHours     Int                @default(30)
+  price              Int                @default(4900) // minor units ($49.00)
+  currency           String             @default("USD")
+  isPublished        Boolean            @default(true)
+  enrollmentCount    Int                @default(0)
+  learningObjectives String             // JSON string
+  requirements       String             // JSON string
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  modules            Module[]
+  finalExam          Quiz?              @relation("CourseFinalExam")
+  enrollments        Enrollment[]
+  orders             Order[]
+  completions        CourseCompletion[]
+
+  @@index([slug])
+  @@index([isPublished])
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  description String
+  orderIndex  Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+  quiz        Quiz?
+
+  @@index([courseId, orderIndex])
+}
+
+model Lesson {
+  id                 String             @id @default(cuid())
+  moduleId           String
+  title              String
+  content            String             // Rich markdown content
+  videoUrl           String?
+  durationMinutes    Int                @default(15)
+  minRequiredSeconds Int                @default(60) // Enforced minimum learning duration
+  orderIndex         Int
+  resources          String?            // JSON string
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  module             Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progresses         LessonProgress[]
+  learningSessions   LearningActivity[]
+
+  @@index([moduleId, orderIndex])
+}
+
+model Quiz {
+  id                  String        @id @default(cuid())
+  moduleId            String?       @unique
+  courseId            String?       @unique
+  title               String
+  description         String
+  isFinalExam         Boolean       @default(false)
+  passingScorePercent Int           @default(75)
+  maxAttempts         Int           @default(3)
+  timeLimitMinutes    Int           @default(20)
+  shuffleQuestions    Boolean       @default(false)
+  orderIndex          Int           @default(1)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  module              Module?       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  course              Course?       @relation("CourseFinalExam", fields: [courseId], references: [id], onDelete: Cascade)
+  questions           Question[]
+  attempts            QuizAttempt[]
+
+  @@index([moduleId])
+  @@index([courseId])
+}
+
+model Question {
+  id           String         @id @default(cuid())
+  quizId       String
+  prompt       String
+  questionType String         @default("SINGLE_CHOICE") // "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER"
+  points       Int            @default(10)
+  orderIndex   Int
+  explanation  String?
+  createdAt    DateTime       @default(now())
+
+  quiz         Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options      AnswerOption[]
+  responses    QuizResponse[]
+
+  @@index([quizId, orderIndex])
+}
+
+model AnswerOption {
+  id         String   @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean  @default(false)
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  userId      String
+  courseId    String
+  status      String    @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "REVOKED"
+  enrolledAt  DateTime  @default(now())
+  completedAt DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model LessonProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  lessonId       String
+  isCompleted    Boolean   @default(false)
+  secondsSpent   Int       @default(0)
+  lastAccessedAt DateTime  @default(now())
+  completedAt    DateTime?
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+}
+
+model QuizAttempt {
+  id               String         @id @default(cuid())
+  userId           String
+  quizId           String
+  scorePercent     Float
+  isPassed         Boolean
+  attemptNumber    Int
+  startedAt        DateTime       @default(now())
+  finishedAt       DateTime?
+  timeSpentSeconds Int            @default(0)
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz             Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  responses        QuizResponse[]
+
+  @@index([userId, quizId])
+}
+
+model QuizResponse {
+  id                 String       @id @default(cuid())
+  attemptId          String
+  questionId         String
+  selectedOptionIds  String?      // JSON array of selected option IDs
+  shortAnswerText    String?
+  isCorrect          Boolean      @default(false)
+  pointsEarned       Int          @default(0)
+
+  attempt            QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question           Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+model LearningActivity {
+  id              String   @id @default(cuid())
+  userId          String
+  courseId        String
+  lessonId        String
+  startedAt       DateTime @default(now())
+  lastPingAt      DateTime @default(now())
+  durationSeconds Int      @default(0)
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lessonId])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  userId          String
+  courseId        String
+  amount          Int         // minor units
+  currency        String      @default("USD")
+  status          String      @default("PENDING") // "PENDING" | "PAID" | "FAILED" | "CANCELLED"
+  paymentProvider String      @default("mock")
+  providerOrderId String?
+  idempotencyKey  String      @unique
+  createdAt       DateTime    @default(now())
+  paidAt          DateTime?
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course          Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([idempotencyKey])
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  orderId       String
+  transactionId String   @unique
+  amount        Int
+  currency      String
+  status        String
+  rawPayload    String?  // JSON response from gateway
+  createdAt     DateTime @default(now())
+
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([transactionId])
+}
+
+model CourseCompletion {
+  id                    String   @id @default(cuid())
+  userId                String
+  courseId              String
+  completedAt           DateTime @default(now())
+  certificateNumber     String   @unique
+  finalExamScore        Float
+  totalTimeSpentMinutes Int      @default(0)
+
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course                Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([certificateNumber])
+}

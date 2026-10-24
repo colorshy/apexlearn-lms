@@ -1,36 +1,161 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ApexLearn LMS — Полнофункциональная платформа онлайн-обучения
 
-## Getting Started
+> Современная, масштабируемая и безопасная Learning Management System (LMS), спроектированная на стеке **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**, **Prisma ORM** и **PostgreSQL**.
 
-First, run the development server:
+---
 
+## 🌟 Ключевые возможности
+
+### 1. Архитектура курса и учебный контент (30 часов)
+- **Иерархия обучения**: `Курс → Модули → Уроки → Квизы → Финальный экзамен`.
+- **Поддержка контента**: форматированный Markdown, видеоплеер (HTML5 video / внешние ссылки), дополнительные материалы и внешние ресурсы.
+- **Флагманский курс**: *Full-Stack Web Development Mastery: Next.js 15, TypeScript & PostgreSQL* (30 часов академической нагрузки, 4 модуля, 9 уроков, промежуточные квизы и финальный экзамен).
+
+### 2. Строгая серверная последовательность (Sequential Progression)
+- **Защита от списывания**: Модуль $N+1$ заблокирован на уровне сервера, пока не завершены все уроки Модуля $N$ и не сдан проверочный квиз с баллом $\ge$ установленному порогу (75%).
+- **Финальный экзамен**: становится доступен только после полного завершения всех модулей курса.
+- **Серверная валидация**: каждый запрос к уроку или тесту проходит проверку доступа. Прямая подстановка URL или манипуляция клиентским состоянием пресекается с возвратом мотивированного отказа.
+
+### 3. Автоматизированная система тестирования (Assessment Engine)
+- **4 типа вопросов**:
+  1. Одиночный выбор (*Single Choice*).
+  2. Множественный выбор (*Multiple Choice* с выбором всех верных опций).
+  3. Верно / Неверно (*True / False*).
+  4. Краткий текстовый ответ (*Short Answer* с нормализацией регистра и пробелов).
+- **Безопасность**: правильные ответы **никогда не передаются клиенту** до проверки.
+- **Детализированный разбор**: после сдачи теста студент видит набранные баллы, процент, статус прохождения и пояснения к каждому вопросу.
+- **Верифицируемый сертификат**: успешная сдача финального экзамена (порог 80%) генерирует номерной сертификат (например, `CERT-APX-2026-XXXX`).
+
+### 4. Трекинг активного времени (Heartbeat & Anti-Cheat)
+- Уроки отслеживают активные действия пользователя (движения мыши, скролл, нажатия клавиш).
+- При неактивности более 60 секунд счетчик автоматически приостанавливается.
+- Сервер валидирует дельты пингов (защита от накрутки огромных значений).
+- Урок невозможно отметить пройденным, если не выполнено минимально требуемое время изучения (`minRequiredSeconds`).
+
+### 5. Платежная архитектура и идемпотентность
+- Паттерн **Payment Gateway Adapter** с изолированной абстракцией провайдера.
+- Встроенный безопасный **Mock Payment Provider** для локальной разработки и тестирования.
+- **Идемпотентность**: повторные вызовы платежных вебхуков или попытки повторной оплаты не дублируют зачисление студента и не вызывают аномалий в базе данных.
+- Готовность к подключению Stripe / Kaspi / CloudPayments без переписывания приложения.
+
+---
+
+## 🧭 Навигация по 16 страницам платформы
+
+| № | Страница | Маршрут | Описание |
+|---|----------|---------|----------|
+| 1 | Главная страница | `/` | Hero, интерактивное превью обучения, витрина курсов, преимущества |
+| 2 | Каталог курсов | `/courses` | Поиск, фильтры, карточки курсов со статистикой и ценами |
+| 3 | Детали курса | `/courses/[slug]` | Учебный план, лектор, требования, кнопка записи/продолжения |
+| 4 | Регистрация | `/register` | Валидация Zod, безопасный пароль, создание профиля |
+| 5 | Вход | `/login` | Вход, быстрые демо-кнопки (Студент / Администратор в 1 клик) |
+| 6 | Сброс пароля | `/forgot-password`, `/reset-password` | Запрос токена восстановления и установка нового пароля |
+| 7 | Дашборд студента | `/dashboard` | Активные курсы, процент прогресса, кнопка «Продолжить обучение» |
+| 8 | Интерфейс урока | `/learn/[slug]/lesson/[lessonId]` | Видеоплеер, конспект, материалы, трекер Heartbeat, навигация |
+| 9 | Интерфейс квиза | `/learn/[slug]/quiz/[quizId]` | Ограничение по времени, 4 типа вопросов, мгновенная проверка |
+| 10 | Финальный экзамен | `/learn/[slug]/exam/[examId]` | Комплексный итоговый тест с повышенным порогом |
+| 11 | Завершение курса | `/learn/[slug]/completed` | Поздравление, официальный сертификат, итоговые метрики |
+| 12 | Профиль и настройки | `/profile` | Редактирование имени, био, ссылки на аватар, метаданные |
+| 13 | Панель администратора | `/admin` | Сводка: выручка, студенты, активные часы, недавние заказы |
+| 14 | Управление курсами | `/admin/courses`, `/admin/courses/new` | Создание курсов, управление публикацией (Eye toggle), удаление |
+| 15 | Студенты и аналитика | `/admin/students`, `/admin/analytics` | Список учащихся, метрики сдачи тестов, реестр оплат, экспорт CSV |
+| 16 | Чекаут и история | `/checkout/[orderId]`, `/checkout/status`, `/purchases` | Оплата заказа, подтверждение, список всех покупок |
+
+---
+
+## 🚀 Быстрый запуск
+
+### Требования
+- Node.js 18+ (рекомендуется 20 или 22)
+- npm 9+
+
+### 1. Установка зависимостей
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install --legacy-peer-deps
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Настройка базы данных
+Платформа поддерживает два режима работы с базой данных:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+#### Вариант А: Локальный SQLite (запуск без внешних сервисов за 10 секунд)
+В файле `.env` указано:
+```env
+DATABASE_URL="file:./dev.db"
+```
+База данных `dev.db` уже сгенерирована и наполнена сид-данными!
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+#### Вариант Б: PostgreSQL (Production / Docker)
+Запустите контейнер PostgreSQL через Docker Compose:
+```bash
+docker compose up -d
+```
+Укажите в `.env`:
+```env
+DATABASE_URL="postgresql://postgres:postgrespassword@localhost:5432/lms_db?schema=public"
+```
+И примените миграции:
+```bash
+npx prisma migrate deploy
+npm run db:seed
+```
 
-## Learn More
+### 3. Запуск сервера разработки
+```bash
+npm run dev
+```
+Откройте браузер по адресу: **[http://localhost:3000](http://localhost:3000)**
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔑 Тестовые учетные записи
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Для удобства оценки и тестирования на странице входа (`/login`) предусмотрены **быстрые кнопки входа в 1 клик**:
 
-## Deploy on Vercel
+| Роль | Email | Пароль | Доступные возможности |
+|------|-------|--------|-----------------------|
+| **Студент** | `student@apexlearn.com` | `student123456` | Личный кабинет, активный курс (Модуль 1 завершен, Модуль 2 в процессе), сдача квизов |
+| **Студент 2** | `maria@apexlearn.com` | `student123456` | Новый студент с заказом в статусе PENDING |
+| **Администратор** | `admin@apexlearn.com` | `admin123456` | Доступ к `/admin`, управление курсами, аналитика, экспорт в CSV |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🧪 Запуск автоматических тестов
+
+В проекте реализован полный набор юнит- и интеграционных тестов с использованием **Vitest**:
+- Хеширование паролей и генерация защищенных сессионных JWT.
+- Серверное разграничение доступа к урокам и защита от несанкционированного пропуска модулей.
+- Автоматическая проверка 4 типов вопросов в квизах без утечки правильных ответов.
+- Валидация дельты трекинга времени (античит).
+- Идемпотентность платежных вебхуков и предотвращение повторных зачислений.
+
+Для запуска тестов выполните:
+```bash
+npm test
+```
+
+---
+
+## 💳 Подключение реального эквайринга
+
+Для перехода с тестового шлюза (`mock`) на реальный провайдер (например, Stripe):
+1. В `src/lib/payment.ts` добавьте класс `StripePaymentProvider implements PaymentProvider`.
+2. Реализуйте методы:
+   - `createCheckout`: создание `stripe.checkout.sessions.create({ ... })`.
+   - `verifyWebhook`: вызов `stripe.webhooks.constructEvent(payload, signature, secret)`.
+3. Установите в `.env`:
+   ```env
+   PAYMENT_PROVIDER="stripe"
+   STRIPE_SECRET_KEY="sk_live_..."
+   PAYMENT_WEBHOOK_SECRET="whsec_..."
+   ```
+Вся остальная бизнес-логика (создание заказов, идемпотентность, открытие доступа и статистика) продолжит работать без каких-либо изменений!
+
+---
+
+## 📦 Сборка для продакшена
+
+Для сборки оптимизированного production бандла:
+```bash
+npm run build
+npm start
+```
